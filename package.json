@@ -1,0 +1,24 @@
+{
+  "private": true,
+  "name": "pokerface",
+  "version": "1.0.0",
+  "description": "A template for kick starting a Cloudflare Workers project",
+  "module": "./dist/index.mjs",
+  "scripts": {
+    "build": "rollup -c",
+    "test": "tap",
+    "format": "prettier --write '**/*.{js,css,json,md}'"
+  },
+  "author": "Edward Stone <ed@autotelic.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^17.0.0",
+    "@rollup/plugin-node-resolve": "^11.1.0",
+    "prettier": "^1.19.1",
+    "rollup": "^2.36.1",
+    "rollup-plugin-copy": "^3.3.0",
+    "rollup-plugin-terser": "^7.0.2",
+    "tap": "^15.0.10"
+  },
+  "dependencies": {}
+}

@@ -1,0 +1,15 @@
+name = "pokerface"
+type = "javascript"
+account_id = "d9c79ef9972578f584c61159671b92e0"
+workers_dev = true
+compatibility_date = "2021-10-01"
+
+[build]
+command = "npm install && npm run build"
+[build.upload]
+# The "modules" upload format is required for all projects that export a Durable Objects class
+format = "modules"
+main = "./index.mjs"
+
+[durable_objects]
+bindings = [{ name = "POKER_SESSION", class_name = "PokerSession" }]
