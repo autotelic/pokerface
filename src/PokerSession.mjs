@@ -3,24 +3,29 @@ export class PokerSession {
     this.state = state
   }
   
+  async startVoting(request) {
+    
+  }
+  
   async fetch(request) {
     const url = new URL(request.url)
     const { pathname } = url
     const storedVoteInProgress = await this.state.storage.get('voteInProgress')
     let voteInProgress = storedVoteInProgress === undefined ? false : storedVoteInProgress
+    console.log(pathname, voteInProgress)
     if (pathname === '/slash') {
       const body = await request.json()
       const { commandText: task, participants } = body
       if (!voteInProgress) {
-        voteInProgress = true
-        await this.state.storage.put('votes', {})
-        await this.state.storage.put('participants', participants)
-        await this.state.storage.put('voteInProgress', voteInProgress)
-        await this.state.storage.put('task', task)
-        return new Response(`voting started for '${task}'`)
-      } else {
-        return new Response(`voting already in progress for '${task}'`)
-      }
+        const votes = {}
+        await this.state.storage.put({
+          votes,
+          participants,
+          voteInProgress: true,
+          task
+        })
+      } 
+      return new Response(JSON.stringify({ voteInProgress }))
     } else if (pathname === '/vote') {
       const body = await request.json()
       console.log(body)

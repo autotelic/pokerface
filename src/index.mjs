@@ -34,20 +34,18 @@ async function handleRequest(request, env) {
     const inputData = await request.formData()
     const rawPayload = inputData.get('payload')
     const payload = JSON.parse(rawPayload)
-    console.log(payload)
+    console.log('!!', payload)
     const {
       actions,
       user: {
         id: userId
       },
       response_url: responseUrl,
-      message: {
-        blocks
-      },
     } = payload
-    const { block_id: source } = blocks[0]
-    const { value: played, block_id: channelId } = actions[0]
-    console.log(played, channelId)
+    const { value: played, block_id: blockId } = actions[0]
+    console.log(played, blockId)
+    const [source, rowNo, channelId] = blockId.split('-')
+    console.log(channelId)
     
     const id = env.POKER_SESSION.idFromName(channelId)
     const stub = env.POKER_SESSION.get(id)
@@ -102,7 +100,7 @@ async function handleRequest(request, env) {
         }, []).join(', ')
         responseBody.text = `all estimates are in for '${task}'! ${voteStr}`
       }
-      // console.log('!!', responseBody)
+      console.log('!!', responseBody)
       const messageResponse = await fetch('https://slack.com/api/chat.postMessage', {
         method: 'POST',
         headers: {
@@ -157,7 +155,7 @@ async function handleRequest(request, env) {
           }
         },
         {
-          "block_id": channelId,
+          "block_id": `poker-1-${channelId}`,
           "type": "actions",
           "elements": [
             {
@@ -217,6 +215,7 @@ async function handleRequest(request, env) {
           ]
         },
         {
+          "block_id": `poker-2-${channelId}`,
           "type": "actions",
           "elements": [
             {
@@ -287,7 +286,7 @@ async function handleRequest(request, env) {
             }
           },
           {
-            "block_id": channelId,
+            "block_id": `rps-1-${channelId}`,
             "type": "actions",
             "elements": [
               {
@@ -329,22 +328,28 @@ async function handleRequest(request, env) {
     const id = env.POKER_SESSION.idFromName(channelId)
     const stub = env.POKER_SESSION.get(id)
     const resp = await stub.fetch(request.url, new Request(request, { body: JSON.stringify({ participants, botId, commandText }) }))
-    const text = await resp.text()
-    participants.forEach(async function(userId) {
-      const messageResponse = await fetch('https://slack.com/api/chat.postMessage', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${env.SLACK_TOKEN}`,
-          'Content-Type': 'application/json; charset=utf-8'
-        },
-        body: JSON.stringify({
-          channel: userId,
-          ...messageContent
+    const { voteInProgress } = await resp.json()
+    if (!voteInProgress) {
+      participants.forEach(async function(userId) {
+        const messageResponse = await fetch('https://slack.com/api/chat.postEphemeral', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${env.SLACK_TOKEN}`,
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: JSON.stringify({
+            channel: channelId,
+            user: userId,
+            ...messageContent
+          })
         })
-      })
-      const messageSuccess = await messageResponse.json()
-      // console.log(messageSuccess)
-    })
+        const messageSuccess = await messageResponse.json()
+        channelResponse.text = `Voting started on '${commandText}'`
+        // console.log(messageSuccess)
+      }) 
+    } else {
+      channelResponse.text = `There's already a vote in progress!`
+    }
     return new Response(JSON.stringify(channelResponse),
     {
       headers: { 'Content-Type': 'application/json' }
