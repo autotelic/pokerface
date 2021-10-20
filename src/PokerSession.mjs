@@ -1,3 +1,6 @@
+const DurableObjectMixin
+
+
 export class PokerSession {
   constructor(state, env) {
     this.state = state
@@ -10,25 +13,23 @@ export class PokerSession {
   async fetch(request) {
     const url = new URL(request.url)
     const { pathname } = url
-    const storedVoteInProgress = await this.state.storage.get('voteInProgress')
-    let voteInProgress = storedVoteInProgress === undefined ? false : storedVoteInProgress
-    console.log(pathname, voteInProgress)
+    const body = await request.json()
     if (pathname === '/slash') {
-      const body = await request.json()
-      const { commandText: task, participants } = body
+      const { commandText: task } = body
+      const storedVoteInProgress = await this.state.storage.get('voteInProgress')
+      let voteInProgress = storedVoteInProgress === undefined ? false : storedVoteInProgress
       if (!voteInProgress) {
         const votes = {}
         await this.state.storage.put({
           votes,
-          participants,
           voteInProgress: true,
           task
         })
       } 
       return new Response(JSON.stringify({ voteInProgress }))
-    } else if (pathname === '/vote') {
-      const body = await request.json()
+    } else if (pathname === '/participants') {
       console.log(body)
+    } else if (pathname === '/vote') {
       const { vote, userId } = body
       const storedVotes = await this.state.storage.get('votes')
       const task = await this.state.storage.get('task')

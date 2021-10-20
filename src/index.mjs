@@ -123,7 +123,8 @@ async function handleRequest(request, env) {
       command,
       channel_id: channelId,
       user_id: commandUserId,
-      text: commandText
+      text: commandText,
+      response_url: responseUrl
     } = formDataObj
     
     const thisBotResponse = await fetchSlackApi(`/auth.test`, env)
@@ -133,7 +134,7 @@ async function handleRequest(request, env) {
     const participants = []
     const messageContent = {}
     const channelResponse = {
-      response_type: 'in_channel'
+      response_type: 'ephemeral', 
     }
     if (command.startsWith('/pokerface')) {
       const membersResponse = await fetchSlackApi(`/conversations.members?channel=${channelId}`, env)
@@ -330,7 +331,31 @@ async function handleRequest(request, env) {
     const resp = await stub.fetch(request.url, new Request(request, { body: JSON.stringify({ participants, botId, commandText }) }))
     const { voteInProgress } = await resp.json()
     if (!voteInProgress) {
+      channelResponse.text = `I've started a vote on '${commandText}'`
+      const inChannelResponse = await fetch(responseUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.SLACK_TOKEN}`,
+          'Content-Type': 'application/json; charset=utf-8'
+        },
+        body: JSON.stringify({
+          response_type: 'in_channel',
+          channel: channelId,
+          text: `Voting started on '${commandText}'`
+        })
+      })
       participants.forEach(async function(userId) {
+        const participantProfileResponse = await fetchSlackApi(`/users.profile.get?user=${userId}`, env)
+        const participantProfile = await participantProfileResponse.json()
+        const {
+          profile: {
+            real_name: realName,
+            display_name: displayName,
+            image_24: participantImgUrl
+          }
+        } = participantProfile
+        // deliberately truthy
+        const participantName = displayName ? displayName : realName
         const messageResponse = await fetch('https://slack.com/api/chat.postEphemeral', {
           method: 'POST',
           headers: {
@@ -344,9 +369,8 @@ async function handleRequest(request, env) {
           })
         })
         const messageSuccess = await messageResponse.json()
-        channelResponse.text = `Voting started on '${commandText}'`
         // console.log(messageSuccess)
-      }) 
+      })
     } else {
       channelResponse.text = `There's already a vote in progress!`
     }
