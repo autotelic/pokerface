@@ -1,15 +1,12 @@
-const DurableObjectMixin
-
-
 export class PokerSession {
   constructor(state, env) {
     this.state = state
   }
-  
+
   async startVoting(request) {
-    
+
   }
-  
+
   async fetch(request) {
     const url = new URL(request.url)
     const { pathname } = url
@@ -25,7 +22,7 @@ export class PokerSession {
           voteInProgress: true,
           task
         })
-      } 
+      }
       return new Response(JSON.stringify({ voteInProgress }))
     } else if (pathname === '/participants') {
       console.log(body)
@@ -58,7 +55,7 @@ export class PokerSession {
         }))
       }
     } else {
-      return new Response(JSON.stringify({ foo: 'bar' })) 
+      return new Response(JSON.stringify({ foo: 'bar' }))
     }
   }
 }
