@@ -3,6 +3,7 @@
 export { PokerSession } from './PokerSession.mjs'
 
 async function fetchSlackApi(path, env, method='GET') {
+  console.log(env.SLACK_TOKEN)
   return await fetch(`https://slack.com/api${path}`, {
     method,
     headers: {
@@ -43,77 +44,87 @@ async function handleRequest(request, env) {
       response_url: responseUrl,
     } = payload
     const { value: played, block_id: blockId } = actions[0]
-    console.log(played, blockId)
-    const [source, rowNo, channelId] = blockId.split('-')
-    console.log(channelId)
-    
-    const id = env.POKER_SESSION.idFromName(channelId)
-    const stub = env.POKER_SESSION.get(id)
-    const resp = await stub.fetch(request.url, new Request(request, { body: JSON.stringify({ vote: played, userId }) }))
-    const talliedVotes = await resp.json()
-    const {
-      task,
-      allVoted,
-      votes
-    } = talliedVotes
-    console.log(talliedVotes, allVoted, votes)
     const responsePayload = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json; charset=utf-8'
       }
     }
-    responsePayload.body = JSON.stringify(
-      source === 'rps'
-        ? { text: `You played ${played}` }
-        : { text: `Your estimate is ${played}` }
-    )
-    const respond = await fetch(responseUrl, responsePayload)
-    if (allVoted) {
-      console.log('all votes are in', source)
-      const responseBody = { channel: channelId }
-      if (source === 'rps') {
-        const results = Object.entries(votes).reduce((acc, [key, value], idx) => {
-          console.log(acc, key, value)
-          if (idx === 0) return { player1: [key, value]}
-          const { player1 } = acc
+    const [source, rowNo, channelId] = blockId.split('-')
+    console.log(channelId)
+    const id = env.POKER_SESSION.idFromName(channelId)
+    const stub = env.POKER_SESSION.get(id)
+    if (played === 'cancel') {
+      const url = new URL('../cancel', request.url)
+      const resp = await stub.fetch(url.toString(), new Request(request, { body: JSON.stringify({}) }))
+      responsePayload.body = JSON.stringify({ text: 'Vote cancelled'})
+      const respond = await fetch(responseUrl, responsePayload)
+      return new Response('cancelled')
+    } else {
+      console.log('here', request.url)
+      const resp = await stub.fetch(request.url, new Request(request, { body: JSON.stringify({ vote: played, userId }) }))
+      console.log('but not here', resp)
+      const talliedVotes = await resp.json()
+      const {
+        task,
+        allVoted,
+        votes
+      } = talliedVotes
+      console.log('!?!?', talliedVotes, allVoted, votes)
+      responsePayload.body = JSON.stringify(
+        source === 'rps'
+          ? { text: `You played ${played}` }
+          : { text: `Your estimate is ${played}` }
+      )
+      console.log('!!!!', responseUrl, responsePayload)
+      const respond = await fetch(responseUrl, responsePayload)
+      console.log(respond)
+      if (allVoted) {
+        console.log('all votes are in', source)
+        const responseBody = { channel: channelId }
+        if (source === 'rps') {
+          const results = Object.entries(votes).reduce((acc, [key, value], idx) => {
+            console.log(acc, key, value)
+            if (idx === 0) return { player1: [key, value]}
+            const { player1 } = acc
+            const [player1userId, player1played] = player1
+            acc.player2 = [key, value]
+            console.log(player1userId, player1played, key, value)
+            if (player1played === value) return { ...acc, result: 'draw' }
+            if (player1played === rockMoji && value === paperMoji) return { ...acc, result: key }
+            if (player1played === rockMoji && value === scissMoji) return { ...acc, result: player1userId }
+            if (player1played === scissMoji && value === paperMoji) return { ...acc, result: player1userId }
+            if (player1played === scissMoji && value === rockMoji) return { ...acc, result: key }
+            if (player1played === paperMoji && value === rockMoji) return { ...acc, result: player1userId }
+            if (player1played === paperMoji && value === scissMoji) return { ...acc, result: key }
+          }, {})
+          const { result, player1, player2 } = results
           const [player1userId, player1played] = player1
-          acc.player2 = [key, value]
-          console.log(player1userId, player1played, key, value)
-          if (player1played === value) return { ...acc, result: 'draw' }
-          if (player1played === rockMoji && value === paperMoji) return { ...acc, result: key }
-          if (player1played === rockMoji && value === scissMoji) return { ...acc, result: player1userId }
-          if (player1played === scissMoji && value === paperMoji) return { ...acc, result: player1userId }
-          if (player1played === scissMoji && value === rockMoji) return { ...acc, result: key }
-          if (player1played === paperMoji && value === rockMoji) return { ...acc, result: player1userId }
-          if (player1played === paperMoji && value === scissMoji) return { ...acc, result: key }
-        }, {})
-        const { result, player1, player2 } = results
-        const [player1userId, player1played] = player1
-        const [player2userId, player2played] = player2
-        const resultStr = result === 'draw' ? 'a tie!' : `<@${result}> wins!`
-        responseBody.text = `<@${player1userId}> ${player1played} v ${player2played} <@${player2userId}> - ${resultStr}`
-      } else {
-        const voteStr = Object.entries(votes).reduce((acc, [key, value]) => {
-          acc.push(`<@${key}>: ${value}`)
-          return acc
-        }, []).join(', ')
-        responseBody.text = `all estimates are in for '${task}'! ${voteStr}`
+          const [player2userId, player2played] = player2
+          const resultStr = result === 'draw' ? 'a tie!' : `<@${result}> wins!`
+          responseBody.text = `<@${player1userId}> ${player1played} v ${player2played} <@${player2userId}> - ${resultStr}`
+        } else {
+          const voteStr = Object.entries(votes).reduce((acc, [key, value]) => {
+            acc.push(`<@${key}>: ${value}`)
+            return acc
+          }, []).join(', ')
+          responseBody.text = `all estimates are in for '${task}'! ${voteStr}`
+        }
+        console.log('!!', responseBody)
+        const messageResponse = await fetch('https://slack.com/api/chat.postMessage', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${env.SLACK_TOKEN}`,
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: JSON.stringify(responseBody)
+        })
+        // console.log('!', messageResponse)
+        const messageSuccess = await messageResponse.json()
+        return new Response('finished')
       }
-      console.log('!!', responseBody)
-      const messageResponse = await fetch('https://slack.com/api/chat.postMessage', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${env.SLACK_TOKEN}`,
-          'Content-Type': 'application/json; charset=utf-8'
-        },
-        body: JSON.stringify(responseBody)
-      })
-      // console.log('!', messageResponse)
-      const messageSuccess = await messageResponse.json()
-      return new Response('finished')
+      return new Response('voted')
     }
-    return new Response('voted')
   }
   if (pathname === '/slash') {
     const formData = await request.formData()
@@ -126,19 +137,20 @@ async function handleRequest(request, env) {
       text: commandText,
       response_url: responseUrl
     } = formDataObj
-    
+
     const thisBotResponse = await fetchSlackApi(`/auth.test`, env)
     const thisBot = await thisBotResponse.json()
     const { user_id: botId } = thisBot
-    
+
     const participants = []
     const messageContent = {}
     const channelResponse = {
-      response_type: 'ephemeral', 
+      response_type: 'ephemeral',
     }
     if (command.startsWith('/pokerface')) {
       const membersResponse = await fetchSlackApi(`/conversations.members?channel=${channelId}`, env)
       const membersJson = await membersResponse.json()
+      console.log(membersJson)
       const { ok } = membersJson
       if (!ok) {
         return new Response(`There was a problem getting the list of participants! Did you invite me to the channel or multi-person DM?`)
@@ -372,12 +384,39 @@ async function handleRequest(request, env) {
         // console.log(messageSuccess)
       })
     } else {
-      channelResponse.text = `There's already a vote in progress!`
+      const responseText = `There's already a vote in progress!`
+      channelResponse.text = responseText
+      channelResponse.blocks = [
+        {
+          "block_id": "in-progress",
+          "type": "section",
+          "text": {
+            "type": "mrkdwn",
+            "text": responseText
+          }
+        },
+        {
+          "block_id": `cancel-1-${channelId}`,
+          "type": "actions",
+          "elements": [
+            {
+              "type": "button",
+              "text": {
+                "type": "plain_text",
+                "text": 'Cancel Vote',
+                "emoji": true
+              },
+              "value": 'cancel',
+              "action_id": "cancel-vote"
+            }
+          ]
+        }
+      ]
     }
     return new Response(JSON.stringify(channelResponse),
     {
       headers: { 'Content-Type': 'application/json' }
-    })  
+    })
   }
   return new Response(`Not found`, { status: 404 })
 }

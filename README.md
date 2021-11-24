@@ -4,7 +4,7 @@
 ## Getting started
 
 - Clone https://github.com/autotelic/pokerface
-- Run `miniflare -w -d -b [SLACK_TOKEN]`
+- Run `miniflare -w -d -b SLACK_TOKEN=<VALUE OF SLACK_TOKEN>`
 - Run `ngrok http --region=us --hostname=pokerface.ngrok.io 8787`
 
 ## How to use
