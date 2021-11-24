@@ -34,6 +34,7 @@ export class PokerSession {
         voteInProgress: false,
         task: null
       })
+      return new Response(JSON.stringify({ cancelled: true }))
     } else if (pathname === '/vote') {
       const { vote, userId } = body
       console.log(vote, userId)

@@ -35,7 +35,7 @@ async function handleRequest(request, env) {
     const inputData = await request.formData()
     const rawPayload = inputData.get('payload')
     const payload = JSON.parse(rawPayload)
-    console.log('!!', payload)
+    // console.log('!!', payload)
     const {
       actions,
       user: {
@@ -56,7 +56,10 @@ async function handleRequest(request, env) {
     const stub = env.POKER_SESSION.get(id)
     if (played === 'cancel') {
       const url = new URL('../cancel', request.url)
+      console.log('cancel url', url.toString())
       const resp = await stub.fetch(url.toString(), new Request(request, { body: JSON.stringify({}) }))
+      const doResp = await resp.json()
+      console.log('DO says', doResp)
       responsePayload.body = JSON.stringify({ text: 'Vote cancelled'})
       const respond = await fetch(responseUrl, responsePayload)
       return new Response('cancelled')
@@ -129,7 +132,7 @@ async function handleRequest(request, env) {
   if (pathname === '/slash') {
     const formData = await request.formData()
     const formDataObj = Object.fromEntries(formData.entries())
-    console.log(formDataObj)
+    console.log('kicking off vote', formDataObj)
     const {
       command,
       channel_id: channelId,
@@ -141,6 +144,7 @@ async function handleRequest(request, env) {
     const thisBotResponse = await fetchSlackApi(`/auth.test`, env)
     const thisBot = await thisBotResponse.json()
     const { user_id: botId } = thisBot
+    console.log('our bot', botId)
 
     const participants = []
     const messageContent = {}
@@ -148,9 +152,10 @@ async function handleRequest(request, env) {
       response_type: 'ephemeral',
     }
     if (command.startsWith('/pokerface')) {
+      console.log('planning poker')
       const membersResponse = await fetchSlackApi(`/conversations.members?channel=${channelId}`, env)
       const membersJson = await membersResponse.json()
-      console.log(membersJson)
+      console.log('members', membersJson)
       const { ok } = membersJson
       if (!ok) {
         return new Response(`There was a problem getting the list of participants! Did you invite me to the channel or multi-person DM?`)
@@ -338,10 +343,14 @@ async function handleRequest(request, env) {
         channelResponse.text = `<@${commandUserId}> has challenged <@${challengedUserId}> to ${rockMoji}, ${paperMoji}, ${scissMoji}`
       }
     }
+    console.log('getting DO')
     const id = env.POKER_SESSION.idFromName(channelId)
     const stub = env.POKER_SESSION.get(id)
+    console.log('got DO')
     const resp = await stub.fetch(request.url, new Request(request, { body: JSON.stringify({ participants, botId, commandText }) }))
+    console.log('stub fetched')
     const { voteInProgress } = await resp.json()
+    console.log('voteInProgress', voteInProgress)
     if (!voteInProgress) {
       channelResponse.text = `I've started a vote on '${commandText}'`
       const inChannelResponse = await fetch(responseUrl, {
@@ -356,18 +365,21 @@ async function handleRequest(request, env) {
           text: `Voting started on '${commandText}'`
         })
       })
+      console.log('participants', participants)
       participants.forEach(async function(userId) {
-        const participantProfileResponse = await fetchSlackApi(`/users.profile.get?user=${userId}`, env)
-        const participantProfile = await participantProfileResponse.json()
-        const {
-          profile: {
-            real_name: realName,
-            display_name: displayName,
-            image_24: participantImgUrl
-          }
-        } = participantProfile
-        // deliberately truthy
-        const participantName = displayName ? displayName : realName
+        console.log('in loop', userId)
+        // const participantProfileResponse = await fetchSlackApi(`/users.profile.get?user=${userId}`, env)
+        // const participantProfile = await participantProfileResponse.json()
+        // console.log('participantProfile', participantProfile)
+        // const {
+        //   profile: {
+        //     real_name: realName,
+        //     display_name: displayName,
+        //     image_24: participantImgUrl
+        //   }
+        // } = participantProfile
+        // // deliberately truthy
+        // const participantName = displayName ? displayName : realName
         const messageResponse = await fetch('https://slack.com/api/chat.postEphemeral', {
           method: 'POST',
           headers: {
@@ -381,7 +393,7 @@ async function handleRequest(request, env) {
           })
         })
         const messageSuccess = await messageResponse.json()
-        // console.log(messageSuccess)
+        console.log('in channel response', messageSuccess)
       })
     } else {
       const responseText = `There's already a vote in progress!`
